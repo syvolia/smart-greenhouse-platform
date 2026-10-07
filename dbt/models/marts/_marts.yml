@@ -1,0 +1,84 @@
+version: 2
+
+models:
+  - name: dim_greenhouse
+    columns:
+      - name: greenhouse_id
+        tests: [unique, not_null]
+
+  - name: dim_zone
+    columns:
+      - name: zone_id
+        tests: [unique, not_null]
+      - name: greenhouse_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_greenhouse')
+              field: greenhouse_id
+      - name: crop_type
+        tests:
+          - accepted_values:
+              values: ["tomato", "lettuce", "pepper", "cucumber"]
+
+  - name: dim_sensor
+    columns:
+      - name: sensor_id
+        tests: [unique, not_null]
+      - name: sensor_type
+        tests:
+          - accepted_values:
+              values: ["temperature", "humidity", "soil_moisture", "light", "co2", "irrigation"]
+      - name: zone_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_zone')
+              field: zone_id
+
+  - name: dim_date
+    columns:
+      - name: date_day
+        tests: [unique, not_null]
+
+  - name: fact_sensor_readings
+    columns:
+      - name: reading_id
+        tests: [unique, not_null]
+      - name: sensor_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_sensor')
+              field: sensor_id
+      - name: reading_timestamp
+        tests: [not_null]
+
+  - name: daily_greenhouse_metrics
+    columns:
+      - name: greenhouse_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_greenhouse')
+              field: greenhouse_id
+      - name: metric_date
+        tests: [not_null]
+
+  - name: hourly_zone_metrics
+    columns:
+      - name: zone_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_zone')
+              field: zone_id
+      - name: sensor_type
+        tests:
+          - accepted_values:
+              values: ["temperature", "humidity", "soil_moisture", "light", "co2", "irrigation"]
+
+  - name: sensor_health_summary
+    columns:
+      - name: sensor_id
+        tests: [unique, not_null]

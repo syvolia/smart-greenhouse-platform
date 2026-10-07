@@ -1,0 +1,297 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: greenhouse_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5435}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - greenhouse_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: greenhouse_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      PYTHONPATH: /app
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_MODEL_NAME: ${MLFLOW_MODEL_NAME:-greenhouse-yield-predictor}
+      MLFLOW_MODEL_STAGE: ${MLFLOW_MODEL_STAGE:-Production}
+    ports:
+      - "${BACKEND_PORT:-8002}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    volumes:
+      - ./backend:/app
+      - ./ml:/app/ml:ro
+      - ./ml/models:/app/ml_models:ro
+    networks:
+      - greenhouse_net
+
+  mlflow:
+    build:
+      context: ./mlflow_server
+      dockerfile: Dockerfile
+    container_name: greenhouse_mlflow
+    restart: unless-stopped
+    command:
+      - "mlflow"
+      - "server"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "5000"
+      - "--backend-store-uri"
+      - "postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/mlflow"
+      - "--artifacts-destination"
+      - "/mlflow/artifacts"
+      - "--serve-artifacts"
+    ports:
+      - "${MLFLOW_PORT:-5001}:5000"
+    volumes:
+      - ./mlflow/artifacts:/mlflow/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - greenhouse_net
+  simulator:
+    build:
+      context: ./simulator
+      dockerfile: Dockerfile
+    container_name: greenhouse_simulator
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://backend:8000
+      SIMULATOR_INTERVAL_SECONDS: ${SIMULATOR_INTERVAL_SECONDS:-5}
+      SIMULATOR_ANOMALY_PROBABILITY: ${SIMULATOR_ANOMALY_PROBABILITY:-0.02}
+      SIMULATOR_LOG_LEVEL: ${SIMULATOR_LOG_LEVEL:-INFO}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - greenhouse_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:${BACKEND_PORT:-8002}
+    container_name: greenhouse_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5174}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - greenhouse_net
+
+  # ---------------------------------------------------------------------------
+  # Data engineering pipeline (Phase 7)
+  # ---------------------------------------------------------------------------
+
+  airflow-init:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+    container_name: greenhouse_airflow_init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        set -e
+        airflow db migrate
+        airflow users create \
+          --username admin --firstname Admin --lastname User \
+          --role Admin --email admin@example.com --password admin || true
+        echo "Airflow initialized."
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ""
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      SPARK_MASTER_URL: spark://spark-master:7077
+      DBT_PROFILES_DIR: /opt/dbt
+      DBT_PROJECT_DIR: /opt/dbt
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./spark/jobs:/opt/spark/jobs:ro
+      - ./dbt:/opt/dbt
+    user: "${AIRFLOW_UID:-50000}:0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - greenhouse_net
+    restart: "no"
+
+  airflow-webserver:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+    container_name: greenhouse_airflow_webserver
+    command: webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ""
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      SPARK_MASTER_URL: spark://spark-master:7077
+      DBT_PROFILES_DIR: /opt/dbt
+      DBT_PROJECT_DIR: /opt/dbt
+    ports:
+      - "${AIRFLOW_PORT:-8080}:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./spark/jobs:/opt/spark/jobs:ro
+      - ./dbt:/opt/dbt
+    user: "${AIRFLOW_UID:-50000}:0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - greenhouse_net
+    restart: unless-stopped
+
+  airflow-scheduler:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+    container_name: greenhouse_airflow_scheduler
+    command: scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ""
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+      AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      SPARK_MASTER_URL: spark://spark-master:7077
+      DBT_PROFILES_DIR: /opt/dbt
+      DBT_PROJECT_DIR: /opt/dbt
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./spark/jobs:/opt/spark/jobs:ro
+      - ./dbt:/opt/dbt
+    user: "${AIRFLOW_UID:-50000}:0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - greenhouse_net
+    restart: unless-stopped
+
+  spark-master:
+    build:
+      context: ./spark
+      dockerfile: Dockerfile
+    container_name: greenhouse_spark_master
+    user: "185:0"
+    command: ["/opt/spark/sbin/start-master.sh"]
+    environment:
+      SPARK_MASTER_HOST: spark-master
+    ports:
+      - "${SPARK_MASTER_PORT:-7077}:7077"
+      - "${SPARK_UI_PORT:-8081}:8080"
+    volumes:
+      - ./spark/jobs:/opt/spark/jobs:ro
+      - ./spark/work:/opt/spark/work
+    networks:
+      - greenhouse_net
+    restart: unless-stopped
+
+  spark-worker:
+    build:
+      context: ./spark
+      dockerfile: Dockerfile
+    container_name: greenhouse_spark_worker
+    user: "185:0"
+    command: ["/opt/spark/sbin/start-worker.sh", "spark://spark-master:7077"]
+    environment:
+      SPARK_WORKER_MEMORY: 2G
+      SPARK_WORKER_CORES: "2"
+    volumes:
+      - ./spark/jobs:/opt/spark/jobs:ro
+      - ./spark/work:/opt/spark/work
+    depends_on:
+      - spark-master
+    networks:
+      - greenhouse_net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  greenhouse_net:
+    driver: bridge

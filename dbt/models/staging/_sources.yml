@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: spark_staging
+    schema: staging
+    tables:
+      - name: sensor_readings_clean
+      - name: hourly_zone_metrics
+  - name: operational
+    schema: public
+    tables:
+      - name: greenhouses
+      - name: zones
+      - name: sensors
+      - name: alerts

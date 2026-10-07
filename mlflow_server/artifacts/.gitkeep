@@ -1,0 +1,2 @@
+mkdir -p mlflow/artifacts
+touch mlflow/artifacts/.gitkeep

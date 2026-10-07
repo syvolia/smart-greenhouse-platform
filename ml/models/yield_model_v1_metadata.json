@@ -1,0 +1,64 @@
+{
+  "model_version": "v1",
+  "model_name": "gradient_boosting",
+  "trained_at": "2026-10-05T19:02:27.250366+00:00",
+  "dataset_rows": 10000,
+  "dataset_hash": "8c3d24396c7e8194",
+  "train_rows": 7000,
+  "val_rows": 1500,
+  "test_rows": 1500,
+  "target": "yield_kg_per_m2",
+  "features": [
+    "avg_temperature_C",
+    "min_temperature_C",
+    "max_temperature_C",
+    "humidity_percent",
+    "co2_ppm",
+    "light_intensity_lux",
+    "photoperiod_hours",
+    "irrigation_mm",
+    "fertilizer_N_kg_ha",
+    "fertilizer_P_kg_ha",
+    "fertilizer_K_kg_ha",
+    "pest_severity",
+    "soil_pH",
+    "days_to_maturity",
+    "crop_type",
+    "temp_range_C",
+    "temp_deviation_C",
+    "light_daily_integral",
+    "nutrient_total_kg_ha"
+  ],
+  "validation_metrics": {
+    "mae": 0.2533927154150529,
+    "rmse": 0.3205118253933087,
+    "r2": 0.9191905233841451,
+    "mape": 7.045905277569345
+  },
+  "test_metrics": {
+    "mae": 0.2584870679192199,
+    "rmse": 0.3270023637853953,
+    "r2": 0.9205310560302631,
+    "mape": 7.035359279008019
+  },
+  "all_validation_metrics": {
+    "linear_regression": {
+      "mae": 0.31655507014973955,
+      "rmse": 0.3951894928213464,
+      "r2": 0.8771472288627179,
+      "mape": 9.093321779733811
+    },
+    "random_forest": {
+      "mae": 0.27817696902262024,
+      "rmse": 0.35092142523951664,
+      "r2": 0.9031289632265047,
+      "mape": 7.912345746040835
+    },
+    "gradient_boosting": {
+      "mae": 0.2533927154150529,
+      "rmse": 0.3205118253933087,
+      "r2": 0.9191905233841451,
+      "mape": 7.045905277569345
+    }
+  }
+}

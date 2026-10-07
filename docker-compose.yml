@@ -53,39 +53,6 @@ services:
     networks:
       - greenhouse_net
 
-  mlflow:
-    build:
-      context: ./mlflow_server
-      dockerfile: Dockerfile
-    container_name: greenhouse_mlflow
-    restart: unless-stopped
-    command:
-      - "mlflow"
-      - "server"
-      - "--host"
-      - "0.0.0.0"
-      - "--port"
-      - "5000"
-      - "--backend-store-uri"
-      - "postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/mlflow"
-      - "--artifacts-destination"
-      - "/mlflow/artifacts"
-      - "--serve-artifacts"
-    ports:
-      - "${MLFLOW_PORT:-5001}:5000"
-    volumes:
-      - ./mlflow/artifacts:/mlflow/artifacts
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - greenhouse_net
   simulator:
     build:
       context: ./simulator
@@ -112,16 +79,46 @@ services:
     container_name: greenhouse_frontend
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-5174}:80"
+      - "${FRONTEND_PORT:-5174}:8080"
     depends_on:
       backend:
         condition: service_healthy
     networks:
       - greenhouse_net
 
-  # ---------------------------------------------------------------------------
-  # Data engineering pipeline (Phase 7)
-  # ---------------------------------------------------------------------------
+  mlflow:
+    build:
+      context: ./mlflow_server
+      dockerfile: Dockerfile
+    container_name: greenhouse_mlflow
+    restart: unless-stopped
+    command:
+      - "mlflow"
+      - "server"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "5000"
+      - "--backend-store-uri"
+      - "postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/mlflow"
+      - "--artifacts-destination"
+      - "/mlflow/artifacts"
+      - "--serve-artifacts"
+    ports:
+      - "${MLFLOW_PORT:-5001}:5000"
+    volumes:
+      - ./mlflow_server/artifacts:/mlflow/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - greenhouse_net
 
   airflow-init:
     build:

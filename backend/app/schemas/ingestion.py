@@ -15,7 +15,7 @@ class SensorReadingCreate(BaseModel):
 class SensorReadingBatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    readings: List[SensorReadingCreate]
+    readings: List[SensorReadingCreate] = Field(..., max_length=500)
 
 
 class IngestionStats(BaseModel):

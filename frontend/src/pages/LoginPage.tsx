@@ -6,11 +6,16 @@ import {
   Button,
   Card,
   CardContent,
+  Divider,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
 import { useAuth } from "../auth/AuthContext";
+
+const DEMO_EMAIL = import.meta.env.VITE_DEMO_LOGIN_EMAIL ?? "";
+const DEMO_PASSWORD = import.meta.env.VITE_DEMO_LOGIN_PASSWORD ?? "";
+const SHOW_DEMO = DEMO_EMAIL !== "" && DEMO_PASSWORD !== "";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -37,6 +42,12 @@ export function LoginPage() {
     }
   };
 
+  const useDemoCredentials = () => {
+    setEmail(DEMO_EMAIL);
+    setPassword(DEMO_PASSWORD);
+    setError(null);
+  };
+
   return (
     <Box
       sx={{
@@ -48,7 +59,7 @@ export function LoginPage() {
         p: 2,
       }}
     >
-      <Card sx={{ width: "100%", maxWidth: 420 }} variant="outlined">
+      <Card sx={{ width: "100%", maxWidth: 440 }} variant="outlined">
         <CardContent>
           <Typography variant="h2" component="h1" gutterBottom>
             🌱 Sign in
@@ -86,6 +97,77 @@ export function LoginPage() {
               >
                 {busy ? "Signing in…" : "Sign in"}
               </Button>
+
+              {SHOW_DEMO && (
+                <>
+                  <Divider sx={{ my: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Demo access
+                    </Typography>
+                  </Divider>
+                  <Alert
+                    severity="info"
+                    icon={false}
+                    sx={{ alignItems: "flex-start" }}
+                  >
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      <strong>Portfolio demo</strong> — use these credentials to
+                      explore the platform:
+                    </Typography>
+                    <Stack
+                      component="dl"
+                      spacing={0.5}
+                      sx={{
+                        m: 0,
+                        fontFamily: "monospace",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      <Box component="div" sx={{ display: "flex", gap: 1 }}>
+                        <Typography
+                          component="dt"
+                          variant="caption"
+                          sx={{ minWidth: 72, color: "text.secondary" }}
+                        >
+                          Email:
+                        </Typography>
+                        <Typography
+                          component="dd"
+                          variant="caption"
+                          sx={{ m: 0, fontFamily: "monospace" }}
+                        >
+                          {DEMO_EMAIL}
+                        </Typography>
+                      </Box>
+                      <Box component="div" sx={{ display: "flex", gap: 1 }}>
+                        <Typography
+                          component="dt"
+                          variant="caption"
+                          sx={{ minWidth: 72, color: "text.secondary" }}
+                        >
+                          Password:
+                        </Typography>
+                        <Typography
+                          component="dd"
+                          variant="caption"
+                          sx={{ m: 0, fontFamily: "monospace" }}
+                        >
+                          {DEMO_PASSWORD}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{ mt: 1.5 }}
+                      onClick={useDemoCredentials}
+                      disabled={busy}
+                    >
+                      Fill demo credentials
+                    </Button>
+                  </Alert>
+                </>
+              )}
             </Stack>
           </form>
         </CardContent>

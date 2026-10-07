@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from typing import List, Optional
 
@@ -23,9 +24,10 @@ class Settings(BaseSettings):
     backend_port: int = 8000
     backend_cors_origins: str = "http://localhost:5173"
 
-    postgres_user: str
-    postgres_password: str
-    postgres_db: str
+    # Optional if DATABASE_URL is provided.
+    postgres_user: Optional[str] = None
+    postgres_password: Optional[str] = None
+    postgres_db: Optional[str] = None
     postgres_host: str = "postgres"
     postgres_port: int = 5432
 
@@ -78,6 +80,30 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        """Return a SQLAlchemy URL.
+
+        Precedence:
+          1. DATABASE_URL env var (used for one-off migrations and hosted deployments)
+          2. Assembled from POSTGRES_* (used by Docker Compose)
+        """
+        override = os.environ.get("DATABASE_URL")
+        if override:
+            # Normalize the scheme for SQLAlchemy + psycopg2.
+            if override.startswith("postgres://"):
+                override = override.replace(
+                    "postgres://", "postgresql+psycopg2://", 1
+                )
+            elif override.startswith("postgresql://"):
+                override = override.replace(
+                    "postgresql://", "postgresql+psycopg2://", 1
+                )
+            return override
+
+        if not all([self.postgres_user, self.postgres_password, self.postgres_db]):
+            raise RuntimeError(
+                "Database configuration missing. Either set DATABASE_URL, or "
+                "set POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB."
+            )
         return (
             f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"

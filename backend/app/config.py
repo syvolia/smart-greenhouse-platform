@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     mlflow_tracking_uri: Optional[str] = None
     mlflow_model_name: str = "greenhouse-yield-predictor"
     mlflow_model_stage: str = "Production"
+    simulator_api_key: Optional[str] = None
 
     @field_validator("backend_cors_origins")
     @classmethod

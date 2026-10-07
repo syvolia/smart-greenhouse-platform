@@ -5,10 +5,12 @@ import { DRAWER_WIDTH, Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
 function titleFor(pathname: string): string {
-  if (pathname === "/" || pathname === "") return "Dashboard";
+  if (pathname === "/" || pathname === "") return "Smart Greenhouse";
   if (pathname.startsWith("/greenhouses")) return "Greenhouse";
   if (pathname.startsWith("/zones")) return "Zone";
   if (pathname.startsWith("/sensors")) return "Sensor";
+  if (pathname.startsWith("/alerts")) return "Alerts";
+  if (pathname.startsWith("/recommendations")) return "Recommendations";
   return "Smart Greenhouse";
 }
 
@@ -18,10 +20,7 @@ export function AppLayout() {
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
-      <TopBar
-        onMenuClick={() => setMobileOpen(true)}
-        title={titleFor(pathname)}
-      />
+      <TopBar onMenuClick={() => setMobileOpen(true)} title={titleFor(pathname)} />
       <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
       <Box
         component="main"
